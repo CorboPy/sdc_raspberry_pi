@@ -2,51 +2,104 @@
 
 ### This will be the service .py file running on the on-board RPi so as long as it is turned on
 
-## CURRENTLY WORKING ON:
+## Current message syntax: "cmd:turn(params),command(params).data:temp(params),cam(params)". ALWAYS cmd first, ALWAYS HAVE A ". data = None" EVEN IF NOT REQUESTING DATA. 
+## EXCEPTION to that rule is for "cmd: poff" which will poweroff
+## "cmd" tells program client wants to perform some action on the spacecraft, "data" tells pi client wants to recieve requested data
+
+## FUTURE UPDATES:
 # 1. Changing message syntax to a json string. This makes it easier to identify an incorrect/unidentifable message
 
 # 2. Explore parallel programming. Have a message listening "parent" that will spit out "child" functions. Parent, child, and other childs would all run on different threads
 # i.e. a child could be made when client specifies in the json string that they want a live feed of the tcam, the child would then run that until parent tells it to stop.
-# Parent will tell it to stop when client says so in their json string (parent is constantly listening and assigning tasks to different threads) - NEED TO DO THIS PROPERLY THOUGH https://superfastpython.com/safely-stop-a-process-in-python/  
-# Meanwhile, another child could be handling a command request. This allows live view from the tcam while a command or data request is being carried out (theoretically)
+# Parent will tell it to stop when client says so in their json string (parent is constantly listening and assigning tasks to different threads)
+# Meanwhile, another child could be handling an AOCS command. This allows live view from the tcam while a command or data request is being carried out
+# Is a child a function? if so then it will still be in one .py file. Maybe see if can write in different py file? idk
 
 from datetime import datetime
 import time
 import socket
 import json
-import multiprocessing as process
-import numpy as np
-import funcs
 # machine for rpi <-> r pico (requesting payload data). probably i2c or something. However, the pico will also be connected via i2c to the amg88xx
 #import RPi.GPIO as GPIO
 
-# CLIENT PROCESSES
-# 1. Default. User input() OR menu system for messages to server. Starts 2 once message is sent. Time wait before can send next message? Can only send one request at a time
-# 2. Listening for recieved messages and distributing to other processes below. If "TCAM stream" json, send to 3. If "data snapshot" json, send to 4.
-# 3. Plot TCAM data from recieved json string
-# 4. Parse recieved data or snapshot of TCAM to determine evacuation areas. For TCAM snapshot, need to write a .txt with columns "location", "temp", "safe or evacuate?" for all locations
 
-# notes: will need a "TCAM stream" identifier for incoming JSON. Maybe just have one key:value pair or have the first one be called "stream" or something?
-# and likewise for "data snapshot"
+# FUNCTIONS
 
-# SERVER PROCESSES
-# 1. Default. Waits for connection from client. If "cmd" is json "key", start process 2. If 
-# 2. command specific process function
-# 3. Data request function
+def aocs_control(angle,speed,etc):
+
+    # Perform aocs control
+    info = "success! (hopefully)"
+    return info
 
 
-#### PROCESS 1 - MAIN BODY 
+def parse_cmd(cmd,params,cmd_list):
+    """Performs requested command and returns info on cmd success/failiure 
+
+    Args:
+        cmd (string): 4-character cmd identifier
+        params (string): string comma list of params required for chosen cmd
+        cmd_list (list): hard-coded string list of cmds
+    """
+    #catching in case it somehow gets through
+    if cmd == "None":
+        return("none")
+    
+    elif cmd == cmd_list[0]:  #tcam
+        info = "tcam_func_received"
+        return(info)
+    elif cmd == cmd_list[1]:  #aocs
+        #params
+        a = float(params.split(",")[0]) # float if number, string if text, etc. Want to get it into form required by aocs_control()
+        s = float(params.split(",")[1])
+        e = float(params.split(",")[2])
+        info = "cmd_aocs_(2)_received:_" + aocs_control(a,s,e)  # Might be neccesary to also return the new angle relative to something
+        return(info)
+    elif cmd == cmd_list[2]:  #whatever it is ...
+        #perform cmd 3
+        info = "cmd_3_received"
+        return(info)
+    #add additional cmds here
+    else:
+        info = cmd + " is_an_unidentified_cmd"
+        return(info)
+
+def parse_data(data,params,data_list):
+    """Parses data request and returns single object (float, array, etc) containing requested data. This can then be stored in a dictionary.
+
+    Args:
+        data (string): 4-character data request identifier
+        params (string): string comma list of params required for chosen data request
+        data_list (list): hard-coded string list of identifiable data requests
+    """
+
+    if data == "None":
+        return("none")
+    
+    elif data == data_list[0]:     #Pi temp
+        temp = "XXXX"   #in K or deg C idk yet
+        return(temp)
+    elif info == data_list[1]:      #Pico temp
+        info = "YYYY"
+        return(info)
+    # add additional data reqs here
+    else:
+        info = data + " is_an_unidentified_data_req"
+        return(info)
+
+
+# MAIN BODY
+
+cmd_list=["tcam","aocs","cmd3"] # For additional intentifiable commands, add them here and then add them to parse_cmd()
+data_list=["pi_t","pico_t","data3"] # For additional intentifiable commands, add them here and then add them to parse_data()
 
 # Setting up server. Will need to add try excepts here if anything goes wrong
 # Based on https://www.youtube.com/watch?v=79dlpK03t30&list=PLGs0VKk2DiYxdMjCJmcP6jt4Yw6OHK85O&index=48
 buffersize = 1024
-server_ip = str(socket.gethostbyname(socket.gethostname()))     # String or no string?
+server_ip = '192.168.0.56'
 server_port = 2222
 RPIServer = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 RPIServer.bind((server_ip,server_port))
 print("Server is running under IP ",server_ip," and port ",server_port)
-
-# EVERYTHING BELOW HERE NEEDS REWRITING
 
 while True:
     data = {}   # Dictionary later to be converted to json and sent to client
