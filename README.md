@@ -1,19 +1,20 @@
 {incomplete}
 
-Concept: decodable messages
+client messages to server in JSON string format:
 
-General:
-"cmd:cmd1(),cmd2(),cmd3().data:dat1(),dat2(),dat3()"
-where cmdn is an example nth command. They will not be called this, they will have a 4-character cmd or data identifier - i.e. cmd:aocs() or data:rpi_t()
+For commands:
+msg = {"cmmd" : [param1, param2, param3] } 
+where "cmmd" is the 4-character command identifier
 
-Power off:
-"cmd:poff" ONLY
+For data, submit a JSON string as follows:
+msg = {"temp" : True , "volt" : False , "cord" : True, .... FOR ALL POSSIBLE DATA REQS}
+Above example would tell server that client wants temp data and coordinate data. Of course, this assumes that no extra params are required for obtaining this data!
 
-Live TCAM:
-"cmd:live" ONLY
+THERMAL CAM - this will be the hardest to pull off
+For live thermal cam stream start:
+msg = {"tcam" : True}
+For live thermal cam stream end:
+msg = {"tcam" : False}
 
-For data req only:
-"cmd:None.data:dat1()"
-
-For cmds only:
-"cmd:cmd1().data:None"
+Idea being that server-side message listening happens on one process, data parsing and sending happens on another, commands on another, thermal cam on another
+Need to figure out how to stop/end/finish processes properly. Especially tcam as it will have to communicate with message-listening process somehow, using "pipe" or by writing to a file or something
