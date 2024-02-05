@@ -15,7 +15,7 @@ from datetime import datetime
 import time
 import socket
 import json
-import multiprocessing as process
+from multiprocessing import Process, managers
 import numpy as np
 from funcs import *
 # machine for rpi <-> r pico (requesting payload data). probably i2c or something. However, the pico will also be connected via i2c to the amg88xx
@@ -48,6 +48,10 @@ print("Server is running under IP ",server_ip," and port ",server_port)
 data_list=["TCAM","TEMP","VOLT"] # For additional intentifiable data reqs, add them here and then add them to parse_data() in funcs.py!!!!!!
 cmmd_list=["AOCS","CMD2","CMD3"] # For additional intentifiable 4-character cmmd's, add them here and then add them to parse_cmd() in funcs.py!!!!!!
 
+# Queue for managing multiprocesses
+q_mgr = managers.SyncManager()
+q_mgr.start()
+
 while True:
     data = {}   # Dictionary later to be converted to json and sent to client
     
@@ -78,26 +82,42 @@ while True:
         # not sure on the best way to do this yet
         # Break? if neccessary
     
-    if ((len(keysList) == 1) and (len(keysList[0])==4)):    # COMMAND json: {"CMMD":(param1,param2,param3)}
+    elif ((len(keysList) == 1) and (len(keysList[0])==4)):    # COMMAND json: {"CMMD":(param1,param2,param3)}
         parse_cmd(msg,cmmd_list)    # also handles unidentified cmds
         print("parse_cmd()")
 
-    if (len(keysList) == len(data_list)):    # DATA json: {"DATA":True,"DATA":False,.... for all data in data_list}
+    elif (len(keysList) == len(data_list)):    # DATA json: {"DATA":True,"DATA":False,.... for all data in data_list}
         parse_data(msg)     # also handles unidentified data requests
         print("parse_data()")
 
 
-    if ((len(keysList)==1) and (keysList[0] == "STREAM")):    # TCAM STREAM json:{"STREAM":True/False}
+    elif ((len(keysList)==1) and (keysList[0] == "STREAM")):    # TCAM STREAM json:{"STREAM":True/False}
         if msg["STREAM"] == True:
-            # Turn on TCAM, start process
-            print("starting TCAM")
-
+            if p2.is_alive() == False:
+                # Turn on TCAM, start process
+                toggle_q = q_mgr.Queue(-1)  # Setting up queue for msg exchange between p1 and p2
+                p2 = Process(name="StreamProcess",target=live_tcam,args=(True,RPIServer))       # Setting up p2
+                p2.start()  # Starting p2
+                print("Starting TCAM STREAM")
+            elif p2.is_alive() == True:
+                print("Error: TCAM STREAM already running")
+            else:
+                print("Error: failed to determine TCAM STREAM is_alive()")
+            
         elif msg["STREAM"] == False:
-            # Turn off TCAM, end process
-            print("turning off TCAM")     
+            if p2.is_alive() == True:
+                # end process
+                toggle_q.put(False)
+                print("Turning off TCAM STREAM")  
+            elif p2.is_alive() == False:
+                print("Error: TCAM STREAM already not running")
+               
 
         else:
             acknowl = "Unidentified STREAM command: " + msg
             print(acknowl)   
             RPIServer.sendto(bytes(acknowl, "utf-8"),ip)  # Telling client it's unidentified stream command
-
+    else:
+        acknowl = "Unidentified message: " + msg
+        print(acknowl)   
+        RPIServer.sendto(bytes(acknowl, "utf-8"),ip)  # Telling client it's a completely unidentified message

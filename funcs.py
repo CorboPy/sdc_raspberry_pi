@@ -7,10 +7,18 @@ def get_tcam():
     return(eight_by_eight_grid)
 
 # LIVE TCAM PROCESS
-def live_tcam():    
+def live_tcam(bool,ip,socket):    
     # Create pipe to process 1 so that when p1 identifies the "end live feed" command, this process checks if this has been recieved each time round the loop. THIS WILL BE COMPLICATED!!!
-    for _ in range(10):
-        print("live tcam")
+    bool = True
+    while (bool==True):
+        # CALL GET TCAM HERE
+        # SEND JSON HERE
+        
+        bool = toggle_q.get()
+        if bool==False:
+            acknowl = "Shutting down TCAM STREAM"
+            print(acknowl)
+            socket.sendto(acknowl,ip)
 
         #listen for change in live cam True/False from p1. If now msg is {"STREAM":False}, stop this process PROPERLY! Very important - don't want memory leaks https://superfastpython.com/safely-stop-a-process-in-python/  
         
