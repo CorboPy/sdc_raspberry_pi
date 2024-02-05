@@ -3,12 +3,13 @@
 ### This will be the service .py file running on the on-board RPi so as long as it is turned on
 
 ## CURRENTLY WORKING ON:
-# 1. Changing message syntax to a json string. This makes it easier to identify an incorrect/unidentifable message
 
-# 2. Explore parallel programming. Have a message listening "parent" that will spit out "child" functions. Parent, child, and other childs would all run on different threads
+# 1. Explore parallel programming. Have a message listening "parent" that will spit out "child" functions. Parent, child, and other childs would all run on different threads
 # i.e. a child could be made when client specifies in the json string that they want a live feed of the tcam, the child would then run that until parent tells it to stop.
 # Parent will tell it to stop when client says so in their json string (parent is constantly listening and assigning tasks to different threads) - NEED TO DO THIS PROPERLY THOUGH https://superfastpython.com/safely-stop-a-process-in-python/  
 # Meanwhile, another child could be handling a command request. This allows live view from the tcam while a command or data request is being carried out (theoretically)
+
+# 2. (maybe) Creating some kind of log file on Pi locally for testing purposes. All printed statements and error catches would be useful to append to log
 
 from datetime import datetime
 import time
@@ -16,7 +17,7 @@ import socket
 import json
 import multiprocessing as process
 import numpy as np
-import funcs
+from funcs import *
 # machine for rpi <-> r pico (requesting payload data). probably i2c or something. However, the pico will also be connected via i2c to the amg88xx
 #import RPi.GPIO as GPIO
 
@@ -26,13 +27,11 @@ import funcs
 # 3. Plot TCAM data from recieved json string
 # 4. Parse recieved data or snapshot of TCAM to determine evacuation areas. For TCAM snapshot, need to write a .txt with columns "location", "temp", "safe or evacuate?" for all locations
 
-# notes: will need a "TCAM stream" identifier for incoming JSON. Maybe just have one key:value pair or have the first one be called "stream" or something?
-# and likewise for "data snapshot"
-
 # SERVER PROCESSES
-# 1. Default. Waits for connection from client. If "cmd" is json "key", start process 2. If 
-# 2. command specific process function
+# 1. Default. Waits for connection from client. If it's a command, start process 2. If data req, start process 3. If live TCAM stream (TRUE), start process 4. If live TCAM stream (FALSE), safely end process 4. If shutdown, run shutdown function on this process, ensuring other processes are shut down safely.
+# 2. Command specific process function
 # 3. Data request function
+# 4. Live TCAM stream function
 
 
 #### PROCESS 1 - MAIN BODY 
@@ -46,101 +45,59 @@ RPIServer = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 RPIServer.bind((server_ip,server_port))
 print("Server is running under IP ",server_ip," and port ",server_port)
 
-# EVERYTHING BELOW HERE NEEDS REWRITING
+data_list=["TCAM","TEMP","VOLT"] # For additional intentifiable data reqs, add them here and then add them to parse_data() in funcs.py!!!!!!
+cmmd_list=["AOCS","CMD2","CMD3"] # For additional intentifiable 4-character cmmd's, add them here and then add them to parse_cmd() in funcs.py!!!!!!
 
 while True:
     data = {}   # Dictionary later to be converted to json and sent to client
     
-    #Getting initial message
-    msg,ip = RPIServer.recvfrom(buffersize)     #https://stackoverflow.com/questions/7962531/socket-return-1-but-errno-0 if no message recieved?
-    msg = msg.decode('utf-8')
-    #msg = "cmd:None.data:temp()"    #example msg
-
-    # test if received a message, not sure exactly how to do this yet (this will need another indentation I think?)
-     # change this to sucessful message check. might be worth adding try except here too for error catching (ie poff cmd msg includes data request)
-        # get current time after msg recieve success 
+    #Initial message handling and acknowledgement
+    msg,ip = RPIServer.recvfrom(buffersize)     #https://stackoverflow.com/questions/7962531/socket-return-1-but-errno-0 if no message recieved?    #or does it wait?
+    msg = json.loads(msg) 
+    #msg = json.loads(json.dumps({"TCAM":True,"Voltage":False}))    #for testing
+    now_rec = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    acknowl = "msg: " + msg + " recieved from " + ip + " at " + now_rec
+    print(acknowl)
+    RPIServer.sendto(bytes(acknowl, "utf-8"),ip)  #quick response to client to say server has recieved msg
+    print("Acknowledgement sent to " + ip)
     
+    # Message decoding
+    keysList = list(msg.keys())
 
-    # may also be worth creating a log file on Pi locally for testing purposes. Printed statement above would be useful to append to log
-
-    if msg == "cmd:poff":      #THIS NEEDS TO HAPPEN FIRST I THINK - would mean cant request info if powering off        
-        now_rec = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        data.update({"time_rec":now_rec})
-        print(msg, + " received from" + ip + "at " + now_rec)
+    # Determining request type - should they be elifs?
+    if ((len(keysList)==1) and (keysList[0] == "SHUTDOWN")):    # SHUTDOWN
+        print("shutting down...")
         
-        print("Powering off in 3,2,1...") # Maybe send this to client as well, use time to count down
-        #power off rpi as everything is connected to it
-        # Break? if neccessary
+        # I think this should stay on 1st process P1. Not much point writing function for this in funcs.py?
+
+        # Wait for data and cmd processes to finish if still runing (something like for _ in range(10): if still running: sleep(10), else: shutdown. After loop, give up and just force shutdown other processes)
+
+        # use time sleep to count down? Maybe send this countdown to client as well
+        # power off rpi safely as everything is connected to it
+        # Need to shutdown any other processes happening
         # not sure on the best way to do this yet
+        # Break? if neccessary
+    
+    if ((len(keysList) == 1) and (len(keysList[0])==4)):    # COMMAND json: {"CMMD":(param1,param2,param3)}
+        parse_cmd(msg,cmmd_list)    # also handles unidentified cmds
+        print("parse_cmd()")
 
-    # Live TCAM Request (to be implimented later down the line)
-    elif msg == "cmd:live":   # Might want to add this capability later down the line (this is v advanced)
-        now_rec = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        data.update({"time_rec":now_rec})
-        print(msg, + " received from" + ip + "at " + now_rec)
-
-        print("streaming tcam...")  #send this to client?
-
-        #while ...
-            # will be a while (requirement), which also listens for secondary messages inside loop at each update. 
-            # Must send (somehow) TCAM array back to client at a regular time intervals (csv? not sure how streaming works through)
-            # If a secondary command says stop, it must exit while loop
+    if (len(keysList) == len(data_list)):    # DATA json: {"DATA":True,"DATA":False,.... for all data in data_list}
+        parse_data(msg)     # also handles unidentified data requests
+        print("parse_data()")
 
 
-        # dont want to do any more parsing after exiting this, so either:
-        #break 
-        # OR override cmd_reqs and data_reqs like this: (so that command and data parsing doesnt happen / just returns "None")
-        cmd_reqs = ["None"]
-        data_reqs = ["None"]
-    else:
-        now_rec = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        data.update({"time_rec":now_rec})
-        print(msg, + " received from" + ip + "at " + now_rec)
-        
-        # Extract cmds and data requests
-        try:
-            cmd_reqs = msg.split(".")[0].split(":")[1].split(",")   #string list of 'func(params)'. this should work even if cmd:None only
-            data_reqs = msg.split(".")[1].split(":")[1].split(",")  #string list of 'data(params)'. "..."
-        except IndexError:  # THIS DOES NOT CAPTURE ALL UNIDENTIFIED COMMANDS! converting client -> server message into json string would be better
-            print("Unidentified command")
-            data.update({"msg":False})
-            
-            # ENCODE JSON
-            # HERE?
-            # Might not be a good idea
+    if ((len(keysList)==1) and (keysList[0] == "STREAM")):    # TCAM STREAM json:{"STREAM":True/False}
+        if msg["STREAM"] == True:
+            # Turn on TCAM, start process
+            print("starting TCAM")
 
-            continue    # start while true loop again
+        elif msg["STREAM"] == False:
+            # Turn off TCAM, end process
+            print("turning off TCAM")     
 
-        else:   # Success!
-
-            # Deal with commands before data
-            cmd_status={}
-            if cmd_reqs[0][0:3] == "None":  # first, test if None
-                cmd_status.update({"cmd":"none"}) 
-                data.update({"cmd_updates":cmd_status}) # dictionary inside data dictionary specifying cmd info
-            else:
-                for cmd in cmd_reqs:
-                    cmd_status.update({cmd: parse_cmd(cmd[0:3],cmd.split("(")[1].split(")")[0],cmd_list) })  # calling parse_cmd() to run command and get cmd success/failure info
-                data.update({"cmd_updates":cmd_status}) # dictionary inside data dictionary specifying cmd info
-
-
-            # Deal with data requests next
-            if data_reqs[0][0:3] == "None":  # first, test if None
-                data.update({"data":"none"})
-            else:
-                for data_req in data_reqs:
-                    data.update({data_req: parse_data(data_req,data_req.split("(")[1].split(")")[0],data_list) }) # calling parse_data() which returns requested data
-        
-            # Encoding and sending JSON string
-
-            json_string = json.dumps(data)
-            print("Sending JSON string: ",json_string)
-
-            RPIServer.sendto(json_string,ip)
-            print ("SENT to:-", ip, server_port, "From", server_ip)
-            # Convert into JSON using json encoder, send to client using socket file transfer?
-                    # https://stackoverflow.com/questions/42397511/python-how-to-get-json-object-from-a-udp-received-packet
-            
-            # Sort dictionary alphabetically by key before encoding? use:    sorted_dict = dict(sorted(unsorted_dict.items()))  KEYS CANNOT CONTAIN NUMBERS!!
-            # (sorting might be best suited to ground station though)
+        else:
+            acknowl = "Unidentified STREAM command: " + msg
+            print(acknowl)   
+            RPIServer.sendto(bytes(acknowl, "utf-8"),ip)  # Telling client it's unidentified stream command
 
