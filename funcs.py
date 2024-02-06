@@ -14,6 +14,7 @@ def live_tcam(bool,ip,socket):
         # CALL GET TCAM HERE
         # SEND JSON HERE    form is {"STREAM": [8x8 matrix]}
         
+        time.sleep(0.2)
         bool = toggle_q.get()
         if bool==False:
             acknowl = "Shutting down TCAM STREAM"
