@@ -1,5 +1,7 @@
 {incomplete}
 
+client side: https://github.com/CorboPy/sdc_ground_station
+
 client messages to server in JSON string format:
 
 For commands:
