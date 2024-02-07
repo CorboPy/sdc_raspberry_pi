@@ -78,6 +78,7 @@ def parse_data(dat_req,ip,socket):
     
     data_out = {"TCAM":None,"VOLT":None,"TEMP":None} #  FILL FOR ALL DATAS IN DATA REQ LIST
     
+    # add current time to data_list?
     if dat_req["TCAM"] == True:
         tcam_data = get_tcam()  # get latest one-off tcam data from function
         data_out["TCAM"] = tcam_data

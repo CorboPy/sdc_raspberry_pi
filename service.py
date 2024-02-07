@@ -46,6 +46,7 @@ RPIServer = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 RPIServer.bind((server_ip,server_port))
 print("Server is running under IP ",server_ip," and port ",server_port)
 
+# add time to data_list?
 data_list=["TCAM","VOLT","TEMP"] # For additional intentifiable data reqs, add them here and then add them to parse_data() in funcs.py!!!!!!
 cmmd_list=["AOCS","CMD2","CMD3"] # For additional intentifiable 4-character cmmd's, add them here and then add them to parse_cmd() in funcs.py!!!!!!
 
