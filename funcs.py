@@ -76,9 +76,12 @@ def parse_data(dat_req,ip,socket):
         socket (socket): server socket
     """
     
-    data_out = {"TCAM":None,"VOLT":None,"TEMP":None} #  FILL FOR ALL DATAS IN DATA REQ LIST
+    data_out = {"TIME":None,"TCAM":None,"VOLT":None,"TEMP":None} #  FILL FOR ALL DATAS IN DATA REQ LIST
     
-    # add current time to data_list?
+
+    if dat_req["TIME"] == True:
+        time_data = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")  # get latest one-off tcam data from function
+        data_out["TIME"] = time_data
     if dat_req["TCAM"] == True:
         tcam_data = get_tcam()  # get latest one-off tcam data from function
         data_out["TCAM"] = tcam_data
@@ -90,7 +93,8 @@ def parse_data(dat_req,ip,socket):
         data_out["TEMP"] = temp_data
 
     # add elifs for all datas!
-    # add error catching to identify unidentified hiccups / errors and print + send msg to client saying what happened!
+    # add error catching to identify unidentified hiccups / errors and print + send msg to client saying what happened! 
+        # an example being forgot to send TEMP in dictionary
 
     # After the above, SEND data_out TO CLIENT
     

@@ -44,29 +44,29 @@ server_ip = str(socket.gethostbyname(socket.gethostname()))     # String or no s
 server_port = 2222
 RPIServer = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 RPIServer.bind((server_ip,server_port))
-print("Server is running under IP ",server_ip," and port ",server_port)
+print("Server is running under IP ",server_ip," and port ",server_port) 
 
 # add time to data_list?
-data_list=["TCAM","VOLT","TEMP"] # For additional intentifiable data reqs, add them here and then add them to parse_data() in funcs.py!!!!!!
+data_list=["TIME","TCAM","VOLT","TEMP"] # For additional intentifiable data reqs, add them here and then add them to parse_data() in funcs.py!!!!!!
 cmmd_list=["AOCS","CMD2","CMD3"] # For additional intentifiable 4-character cmmd's, add them here and then add them to parse_cmd() in funcs.py!!!!!!
 
-# Queue for managing multiprocesses
+# Queue for managing multithreads
 q_mgr = managers.SyncManager()
 q_mgr.start()
 
 while True:
-    data = {}   # Dictionary later to be converted to json and sent to client
-    
     #Initial message handling and acknowledgement
     msg,ip = RPIServer.recvfrom(buffersize)     #https://stackoverflow.com/questions/7962531/socket-return-1-but-errno-0 if no message recieved?    #or does it wait?
     msg = json.loads(msg) 
     #msg = json.loads(json.dumps({"TCAM":True,"Voltage":False}))    #for testing
-    now_rec = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
     acknowl = "msg: " + msg + " recieved from " + ip + " at " + now_rec
     print(acknowl)
     RPIServer.sendto(bytes(acknowl, "utf-8"),ip)  #quick response to client to say server has recieved msg
     print("Acknowledgement sent to " + ip)
     
+    data = {}   # Dictionary later to be converted to json and sent to client
+
     # Message decoding
     keysList = list(msg.keys())
 
