@@ -58,11 +58,11 @@ while True:
     #Initial message handling and acknowledgement
     msg,ip = RPIServer.recvfrom(buffersize)     #https://stackoverflow.com/questions/7962531/socket-return-1-but-errno-0 if no message recieved?    #or does it wait?
     msg = json.loads(msg) 
-    #msg = json.loads(json.dumps({"TCAM":True,"Voltage":False}))    #for testing
+    #msg = json.loads(json.dumps({"TCAM":True,"Voltage":False}))    #for testing (need to set ip as well tho)
     now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
     acknowl = "msg: " + msg + " recieved from " + ip + " at " + now_rec
     print(acknowl)
-    RPIServer.sendto(bytes(acknowl, "utf-8"),ip)  #quick response to client to say server has recieved msg
+    RPIServer.sendto(acknowl.encode("utf-8"),ip)  #quick response to client to say server has recieved msg
     print("Acknowledgement sent to " + ip)
     
     data = {}   # Dictionary later to be converted to json and sent to client
@@ -106,8 +106,14 @@ while True:
         # Break? if neccessary
     
     elif ((len(keysList) == 1) and (len(keysList[0])==4)):    # COMMAND json: {"CMMD":(param1,param2,param3)}
-        parse_cmd(msg,cmmd_list,ip,RPIServer)    # also handles unidentified cmds
-        print("parse_cmd()")
+        print("Message identified as cmmd.")
+        # This might need to be a multiprocess depending how how CPU intensive it is (or could set a particular command as a multiprocess)
+        # info = parse_cmd(msg,cmmd_list,ip,RPIServer)    # also handles unidentified cmds
+        # print(info)
+
+        supported = "Currently commands are not supported" # remove when implemented
+        RPIServer.sendto(supported.encode('utf-8'),ip) # remove when implemented
+
 
     elif (len(keysList) == len(data_list)):    # DATA json: {"DATA":True,"DATA":False,.... for all data in data_list}
         parse_data(msg,ip,RPIServer)     # also handles unidentified data requests
@@ -138,8 +144,8 @@ while True:
         else:
             acknowl = "Unidentified STREAM command: " + msg
             print(acknowl)   
-            RPIServer.sendto(bytes(acknowl, "utf-8"),ip)  # Telling client it's unidentified stream command
+            RPIServer.sendto(acknowl.encode("utf-8"),ip)  # Telling client it's unidentified stream command
     else:
         acknowl = "Unidentified message: " + msg
         print(acknowl)   
-        RPIServer.sendto(bytes(acknowl, "utf-8"),ip)  # Telling client it's a completely unidentified message
+        RPIServer.sendto(acknowl.encode("utf-8"),ip)  # Telling client it's a completely unidentified message

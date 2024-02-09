@@ -19,7 +19,7 @@ def live_tcam(bool,ip,socket):
         if bool==False:
             acknowl = "Shutting down TCAM STREAM"
             print(acknowl)
-            socket.sendto(acknowl,ip)
+            socket.sendto(acknowl.encode('utf-8'),ip)
             
     # Write shutdown code here (outside loop)
     # listen for change in live cam True/False from p1. If now msg is {"STREAM":False}, stop this process PROPERLY! Very important - don't want memory leaks https://superfastpython.com/safely-stop-a-process-in-python/  
@@ -50,6 +50,7 @@ def parse_cmd(cmd_dict,cmmd_list,ip,socket):  # For additional intentifiable com
     params = list(cmd_dict[cmmd])
     
     if cmmd == cmmd_list[0]:  #aocs
+        print("AOCS command")
         a, b, c = params[0],params[1],params[2]
         cmmd_output = aocs_control(float(a),b,c)
         info = "cmd_aocs_(2)_received:_" + cmmd_output  # May need to turn param into float, etc
@@ -100,7 +101,7 @@ def parse_data(dat_req,ip,socket):
     
     json_string = json.dumps(data_out)
     print("data_out: ", json_string)
-    socket.sendto(json_string,ip)
+    socket.sendto(json_string.encode('utf-8'),ip)
     print("Sent to ",ip)
 
 # JSON ENCODING INFO
