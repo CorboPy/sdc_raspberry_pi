@@ -51,12 +51,15 @@ data_list=["TIME","TCAM","VOLT","TEMP"] # For additional intentifiable data reqs
 cmmd_list=["AOCS","CMD2","CMD3"] # For additional intentifiable 4-character cmmd's, add them here and then add them to parse_cmd() in funcs.py!!!!!!
 
 # Queue for managing multithreads
-q_mgr = managers.SyncManager()
-q_mgr.start()
+# q_mgr = managers.SyncManager()
+# q_mgr.start()
 
 while True:
     #Initial message handling and acknowledgement
-    msg,ip = RPIServer.recvfrom(buffersize)     #https://stackoverflow.com/questions/7962531/socket-return-1-but-errno-0 if no message recieved?    #or does it wait?
+    try:
+        msg,ip = RPIServer.recvfrom(buffersize).decode('utf-8')     #https://stackoverflow.com/questions/7962531/socket-return-1-but-errno-0 if no message recieved?    #or does it wait?
+    except Exception as error:
+        print("Error in recieving message: ",error)
     msg = json.loads(msg) 
     #msg = json.loads(json.dumps({"TCAM":True,"Voltage":False}))    #for testing (need to set ip as well tho)
     now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
