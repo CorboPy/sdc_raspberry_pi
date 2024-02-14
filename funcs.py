@@ -28,6 +28,8 @@ def live_tcam(bool,ip,socket):
             acknowl = "Shutting down TCAM STREAM"
             print(acknowl)
             socket.sendto(acknowl.encode('utf-8'),ip)
+            break
+    print("(p2) Ended.")
             
     # Write shutdown code here (outside loop)
     # listen for change in live cam True/False from p1. If now msg is {"STREAM":False}, stop this process PROPERLY! Very important - don't want memory leaks https://superfastpython.com/safely-stop-a-process-in-python/  
