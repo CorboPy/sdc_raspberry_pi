@@ -35,6 +35,8 @@ import signal
 # 3. Data request function
 # 4. Live TCAM stream function
 
+## CURRENT PROBLEMS
+# Need to setup TCAM stream somehow using threading or processing. Also need to establish this thread/process before main loop so can test if it exists and shut it down using something (queue? something else?) 
 
 #### PROCESS 1 - MAIN BODY 
 
