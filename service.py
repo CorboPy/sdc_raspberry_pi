@@ -18,6 +18,7 @@ import json
 from multiprocessing import Process, managers
 import numpy as np
 from funcs import *
+import signal
 # machine for rpi <-> r pico (requesting payload data). probably i2c or something. However, the pico will also be connected via i2c to the amg88xx
 #import RPi.GPIO as GPIO
 
@@ -39,7 +40,7 @@ from funcs import *
 
 # Setting up server. Will need to add try excepts here if anything goes wrong
 # Based on https://www.youtube.com/watch?v=79dlpK03t30&list=PLGs0VKk2DiYxdMjCJmcP6jt4Yw6OHK85O&index=48
-buffersize = 1024
+buffersize = 2048
 server_ip = str(socket.gethostbyname(socket.gethostname()))     # String or no string?
 server_port = 2222
 RPIServer = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
@@ -54,22 +55,31 @@ cmmd_list=["AOCS","CMD2","CMD3"] # For additional intentifiable 4-character cmmd
 # q_mgr = managers.SyncManager()
 # q_mgr.start()
 
+signal.signal(signal.SIGINT, signal.SIG_DFL)    # Requred to allow CTRL/C exits for resvfrom()
+
 # MIGHT WANT TO ADD PASSWORD CHECK HERE TO AVOID ANY RANDO INTERFERING WITH THE PI ON COMPETITION DAY 
 while True:
     #Initial message handling and acknowledgement
     print("In loop")
     try:
-        msg,ip = RPIServer.recvfrom(buffersize).decode('utf-8')     #https://stackoverflow.com/questions/7962531/socket-return-1-but-errno-0 if no message recieved?    #or does it wait?
+        msg,ip = RPIServer.recvfrom(buffersize)     #https://stackoverflow.com/questions/7962531/socket-return-1-but-errno-0 if no message recieved?    #or does it wait?
     except Exception as error:
         print("Error in recieving message: ",error)
-    msg = json.loads(msg) 
+    try:
+        msg_str = str(msg.decode('utf-8')) 
+    except Exception as error:
+        print("Error in parsing recieved message: ",error)
     #msg = json.loads(json.dumps({"TCAM":True,"Voltage":False}))    #for testing (need to set ip as well tho)
+    try:
+        msg = json.loads(msg_str)
+    except Exception as error:
+        print(error)
+    print(ip)
     now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
-    acknowl = "msg: " + msg + " recieved from " + ip + " at " + now_rec
+    acknowl = "(Server) Message: %s recieved from %s at %s " % (str(msg_str), str(ip) , str(now_rec))
     print(acknowl)
     RPIServer.sendto(acknowl.encode("utf-8"),ip)  #quick response to client to say server has recieved msg
-    print("Acknowledgement sent to " + ip)
-    
+    print("Acknowledgement sent to %s" % ip[0])
     data = {}   # Dictionary later to be converted to json and sent to client
 
     # Message decoding
@@ -77,28 +87,28 @@ while True:
 
     # Determining request type - should they be elifs?
     if ((len(keysList)==1) and (keysList[0] == "SHUTDOWN")):    # SHUTDOWN
-        if p2.is_alive() == False:
-            print("Error: please shutdown TCAM STREAM first")
-            RPIServer.sendto(bytes("Error: please shutdown TCAM STREAM first", "utf-8"),ip)
-        elif p2.is_alive() == False:
-            print("Shutting down in...")
-            RPIServer.sendto(bytes("Shutting down in...", "utf-8"),ip)
-            time.sleep(1)
-            print("3")
-            RPIServer.sendto(bytes("3", "utf-8"),ip)
-            time.sleep(1)
-            print("2")
-            RPIServer.sendto(bytes("2", "utf-8"),ip)
-            time.sleep(1)
-            print("1")
-            RPIServer.sendto(bytes("1", "utf-8"),ip)
-            time.sleep(1)
-            RPIServer.shutdown(socket.SHUT_RDWR)
-            RPIServer.close()
-            print("Server has shutdown")
-        else:
-            print("Error: failed to determine TCAM STREAM is_alive()")
-            RPIServer.sendto(bytes("Error: failed to determine TCAM STREAM is_alive()", "utf-8"),ip)
+        # if p2.is_alive() == False:
+        #     print("Error: please shutdown TCAM STREAM first")
+        #     RPIServer.sendto(bytes("Error: please shutdown TCAM STREAM first", "utf-8"),ip)
+        # elif p2.is_alive() == False:
+        print("Shutting down in...")
+        RPIServer.sendto(bytes("Shutting down in...", "utf-8"),ip)
+        time.sleep(1)
+        print("3")
+        RPIServer.sendto(bytes("3", "utf-8"),ip)
+        time.sleep(1)
+        print("2")
+        RPIServer.sendto(bytes("2", "utf-8"),ip)
+        time.sleep(1)
+        print("1")
+        RPIServer.sendto(bytes("1", "utf-8"),ip)
+        time.sleep(2)
+        RPIServer.shutdown(socket.SHUT_RDWR)
+        RPIServer.close()
+        break
+        # else:
+        #     print("Error: failed to determine TCAM STREAM is_alive()")
+        #     RPIServer.sendto(bytes("Error: failed to determine TCAM STREAM is_alive()", "utf-8"),ip)
         
         # I think this should stay on 1st process P1. Not much point writing function for this in funcs.py?
 
@@ -154,3 +164,5 @@ while True:
         acknowl = "Unidentified message: " + msg
         print(acknowl)   
         RPIServer.sendto(acknowl.encode("utf-8"),ip)  # Telling client it's a completely unidentified message
+
+print("Server has shutdown")

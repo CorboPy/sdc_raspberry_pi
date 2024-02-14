@@ -10,7 +10,7 @@ import numpy as np
 
 # Single tcam request
 def get_tcam():
-    eight_by_eight_grid = 20*np.ones(8,8) + np.random.rand(8,8)   # Get most recent tcam image data (currenly np random, for testing purposes)
+    eight_by_eight_grid = 20*np.ones((8,8)) + np.random.random((8,8))   # Get most recent tcam image data (currenly np random, for testing purposes)
     return(eight_by_eight_grid)
 
 # LIVE TCAM PROCESS
@@ -20,6 +20,7 @@ def live_tcam(bool,ip,socket):
     while (bool==True):     # While still want stream running...
         # CALL GET TCAM HERE
         # SEND JSON HERE    form is {"STREAM": [8x8 matrix]}
+        # 8x8 MATRIX MUST BE PYTHON LIST NOT NP ARRAY (ndarray not json serializable)
         
         time.sleep(0.2)
         bool = toggle_q.get()
@@ -92,7 +93,7 @@ def parse_data(dat_req,ip,socket):
         data_out["TIME"] = time_data
     if dat_req["TCAM"] == True:
         tcam_data = get_tcam()  # get latest one-off tcam data from function
-        data_out["TCAM"] = tcam_data
+        data_out["TCAM"] = tcam_data.tolist()
     if dat_req["VOLT"] == True:
         voltage_data = 5    # get latest voltage data (5 placeholder, for testing purposes)
         data_out["VOLT"] = voltage_data
