@@ -54,8 +54,10 @@ cmmd_list=["AOCS","CMD2","CMD3"] # For additional intentifiable 4-character cmmd
 # q_mgr = managers.SyncManager()
 # q_mgr.start()
 
+# MIGHT WANT TO ADD PASSWORD CHECK HERE TO AVOID ANY RANDO INTERFERING WITH THE PI ON COMPETITION DAY 
 while True:
     #Initial message handling and acknowledgement
+    print("In loop")
     try:
         msg,ip = RPIServer.recvfrom(buffersize).decode('utf-8')     #https://stackoverflow.com/questions/7962531/socket-return-1-but-errno-0 if no message recieved?    #or does it wait?
     except Exception as error:

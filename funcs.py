@@ -1,6 +1,13 @@
 ## SERVER FUNCTIONS AND PROCESSES
 # need to import numpy here?
 
+from datetime import datetime
+import time
+import socket
+import json
+from multiprocessing import Process, managers
+import numpy as np
+
 # Single tcam request
 def get_tcam():
     eight_by_eight_grid = 20*np.ones(8,8) + np.random.rand(8,8)   # Get most recent tcam image data (currenly np random, for testing purposes)
