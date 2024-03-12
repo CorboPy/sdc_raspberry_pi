@@ -7,6 +7,8 @@ import socket
 import json
 from multiprocessing import Process, managers
 import numpy as np
+from pyembedded.raspberry_pi_tools.raspberrypi import PI
+pi = PI()
 
 # Single tcam request
 def get_tcam():
@@ -87,7 +89,7 @@ def parse_data(dat_req,ip,socket):
         socket (socket): server socket
     """
     
-    data_out = {"TIME":None,"TCAM":None,"VOLT":None,"TEMP":None} #  FILL FOR ALL DATAS IN DATA REQ LIST
+    data_out = {"TIME":None,"TCAM":None,"VOLT":None,"TEMP":None,"IPAD":None,"WLAN":None} #  FILL FOR ALL DATAS IN DATA REQ LIST
     
 
     if dat_req["TIME"] == True:
@@ -100,8 +102,15 @@ def parse_data(dat_req,ip,socket):
         voltage_data = 5    # get latest voltage data (5 placeholder, for testing purposes)
         data_out["VOLT"] = voltage_data
     if dat_req["TEMP"] == True:
-        temp_data = 25    # get latest voltage data (5 placeholder, for testing purposes)
+        temp_data = pi.get_cpu_temp()    # get latest cpu temp
         data_out["TEMP"] = temp_data
+    if dat_req["IPAD"] == True:
+        ipad_data = pi.get_connected_ip_addr(network='wlan0')   # get PI ip address
+        data_out["IPAD"] = ipad_data
+    if dat_req["WLAN"] == True:
+        wlan_data = pi.get_wifi_status()    # get wifi infomation
+        data_out["WLAN"] = wlan_data
+
 
     # add elifs for all datas!
     # add error catching to identify unidentified hiccups / errors and print + send msg to client saying what happened! 
