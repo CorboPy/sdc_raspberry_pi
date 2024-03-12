@@ -37,13 +37,15 @@ import signal
 
 ## CURRENT PROBLEMS
 # Need to setup TCAM stream somehow using threading or processing. Also need to establish this thread/process before main loop so can test if it exists and shut it down using something (queue? something else?) 
+# gethostname() does NOT WORK on the pi. Maybe use os ifconfig??
 
 #### PROCESS 1 - MAIN BODY 
 
 # Setting up server. Will need to add try excepts here if anything goes wrong
 # Based on https://www.youtube.com/watch?v=79dlpK03t30&list=PLGs0VKk2DiYxdMjCJmcP6jt4Yw6OHK85O&index=48
 buffersize = 2048
-server_ip = str(socket.gethostbyname(socket.gethostname()))     # String or no string?
+#server_ip = str(socket.gethostbyname(socket.gethostname()))     # String or no string?
+server_ip = str(input("Please input the server's IP (current workaroud): "))
 server_port = 2222
 RPIServer = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 RPIServer.bind((server_ip,server_port))
