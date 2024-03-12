@@ -12,9 +12,10 @@ pi = PI()
 
 # Single tcam request
 def get_tcam():
-    eight_by_eight_grid = 20*np.ones((8,8)) + np.random.random((8,8))   # Get most recent tcam image data (currenly np random, for testing purposes)
-    # DON'T NEED loads of decimals, truncate to save link budget
-    return(eight_by_eight_grid)
+    eight_by_eight_grid = 20*np.ones((8,8)) + 10*np.random.random((8,8))   # Get most recent tcam image data (currenly np random, for testing purposes)
+    
+    # DON'T NEED loads of decimals, truncate to save link budget:
+    return(eight_by_eight_grid.round(decimals=2))
 
 # LIVE TCAM PROCESS
 def live_tcam(bool,ip,socket):    
