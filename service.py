@@ -19,6 +19,8 @@ from multiprocessing import Process, managers
 import numpy as np
 from funcs import *
 import signal
+from pyembedded.raspberry_pi_tools.raspberrypi import PI
+pi = PI()
 # machine for rpi <-> r pico (requesting payload data). probably i2c or something. However, the pico will also be connected via i2c to the amg88xx
 #import RPi.GPIO as GPIO
 
@@ -45,7 +47,8 @@ import signal
 # Based on https://www.youtube.com/watch?v=79dlpK03t30&list=PLGs0VKk2DiYxdMjCJmcP6jt4Yw6OHK85O&index=48
 buffersize = 2048
 #server_ip = str(socket.gethostbyname(socket.gethostname()))     # String or no string?
-server_ip = str(input("Please input the server's IP (current workaroud): "))
+#server_ip = str(input("Please input the server's IP (current workaroud): "))
+server_ip = pi.get_connected_ip_addr(network='wlan0').replace(" ","")
 server_port = 2222
 RPIServer = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 RPIServer.bind((server_ip,server_port))
@@ -165,7 +168,7 @@ while True:
             print(acknowl)   
             RPIServer.sendto(acknowl.encode("utf-8"),ip)  # Telling client it's unidentified stream command
     else:
-        acknowl = "Unidentified message: " + msg
+        acknowl = "Unidentified message: " + str(msg)
         print(acknowl)   
         RPIServer.sendto(acknowl.encode("utf-8"),ip)  # Telling client it's a completely unidentified message
 

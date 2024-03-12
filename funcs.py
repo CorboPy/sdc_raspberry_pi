@@ -13,6 +13,7 @@ pi = PI()
 # Single tcam request
 def get_tcam():
     eight_by_eight_grid = 20*np.ones((8,8)) + np.random.random((8,8))   # Get most recent tcam image data (currenly np random, for testing purposes)
+    # DON'T NEED loads of decimals, truncate to save link budget
     return(eight_by_eight_grid)
 
 # LIVE TCAM PROCESS
@@ -105,7 +106,7 @@ def parse_data(dat_req,ip,socket):
         temp_data = pi.get_cpu_temp()    # get latest cpu temp
         data_out["TEMP"] = temp_data
     if dat_req["IPAD"] == True:
-        ipad_data = pi.get_connected_ip_addr(network='wlan0')   # get PI ip address
+        ipad_data = pi.get_connected_ip_addr(network='wlan0').replace(" ","")   # get PI ip address
         data_out["IPAD"] = ipad_data
     if dat_req["WLAN"] == True:
         wlan_data = pi.get_wifi_status()    # get wifi infomation
