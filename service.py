@@ -39,7 +39,7 @@ pi = PI()
 
 ## CURRENT PROBLEMS
 # Need to setup TCAM stream somehow using threading or processing. Also need to establish this thread/process before main loop so can test if it exists and shut it down using something (queue? something else?) 
-# gethostname() does NOT WORK on the pi. Maybe use os ifconfig??
+# TCP
 
 #### PROCESS 1 - MAIN BODY 
 
