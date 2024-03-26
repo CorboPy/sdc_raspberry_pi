@@ -17,7 +17,7 @@ import socket
 import json
 from multiprocessing import Process, managers
 import numpy as np
-from funcs import *
+from funcs_TCP import *
 import signal
 from pyembedded.raspberry_pi_tools.raspberrypi import PI
 pi = PI()
@@ -71,13 +71,24 @@ while True:
 
         # Receive the data in small chunks and retransmit it
         while True:
-            data = connection.recv(buffersize)
-            print('received {!r}'.format(data))
+            data = connection.recv(buffersize)  # TIME OUT?
             
+            try:
+                msg_str = str(data.decode('utf-8')) 
+            except Exception as error:
+                print("Error in parsing recieved message: ",error)
+                continue #????
             try:
                 msg = json.loads(msg_str)
             except Exception as error:
                 print(error)
+                continue
+            
+            now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
+            acknowl = "(Server) Message: %s recieved from %s at %s " % (str(msg_str), str(client_address) , str(now_rec))
+            print(acknowl)
+            #RPIServer.sendto(acknowl.encode("utf-8"),ip)  #quick response to client to say server has recieved msg
+            print("Acknowledgement sent to %s" % client_address)
 
             if data:
                 print('sending data back to the client')
@@ -85,116 +96,42 @@ while True:
             else:
                 print('no data from', client_address)
                 break
+            
+            result = parse_msg(connection,msg)
+
+            if result == "SHUTDOWN":
+                RPIServer.shutdown(socket.SHUT_RDWR)
+                connection.close()
+                break
+
     
     except Exception as error:
         print("Error in TCP connection: ",error)
     finally:
-        # Clean up the connection
+        # Clean up the connection - what to do if shutting down?
         connection.close()
 
 
-    try:
-        msg,ip = RPIServer.recvfrom(buffersize)     #https://stackoverflow.com/questions/7962531/socket-return-1-but-errno-0 if no message recieved?    #or does it wait?
-    except Exception as error:
-        print("Error in recieving message: ",error)
-    try:
-        msg_str = str(msg.decode('utf-8')) 
-    except Exception as error:
-        print("Error in parsing recieved message: ",error)
-    #msg = json.loads(json.dumps({"TCAM":True,"Voltage":False}))    #for testing (need to set ip as well tho)
-    try:
-        msg = json.loads(msg_str)
-    except Exception as error:
-        print(error)
-    print(ip)
-    now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
-    acknowl = "(Server) Message: %s recieved from %s at %s " % (str(msg_str), str(ip) , str(now_rec))
-    print(acknowl)
-    RPIServer.sendto(acknowl.encode("utf-8"),ip)  #quick response to client to say server has recieved msg
-    print("Acknowledgement sent to %s" % ip[0])
-    data = {}   # Dictionary later to be converted to json and sent to client
-
-    # Message decoding
-    keysList = list(msg.keys())
-
-    # Determining request type - should they be elifs?
-    if ((len(keysList)==1) and (keysList[0] == "SHUTDOWN")):    # SHUTDOWN
-        # if p2.is_alive() == False:
-        #     print("Error: please shutdown TCAM STREAM first")
-        #     RPIServer.sendto(bytes("Error: please shutdown TCAM STREAM first", "utf-8"),ip)
-        # elif p2.is_alive() == False:
-        print("Shutting down in...")
-        RPIServer.sendto(bytes("Shutting down in...", "utf-8"),ip)
-        time.sleep(1)
-        print("3")
-        RPIServer.sendto(bytes("3", "utf-8"),ip)
-        time.sleep(1)
-        print("2")
-        RPIServer.sendto(bytes("2", "utf-8"),ip)
-        time.sleep(1)
-        print("1")
-        RPIServer.sendto(bytes("1", "utf-8"),ip)
-        time.sleep(2)
-        RPIServer.shutdown(socket.SHUT_RDWR)
-        RPIServer.close()
-        break
-        # else:
-        #     print("Error: failed to determine TCAM STREAM is_alive()")
-        #     RPIServer.sendto(bytes("Error: failed to determine TCAM STREAM is_alive()", "utf-8"),ip)
-        
-        # I think this should stay on 1st process P1. Not much point writing function for this in funcs.py?
-
-        # Wait for data and cmd processes to finish if still runing (something like for _ in range(10): if still running: sleep(10), else: shutdown. After loop, give up and just force shutdown other processes)
-
-        # use time sleep to count down? Maybe send this countdown to client as well
-        # power off rpi safely as everything is connected to it
-        # Need to shutdown any other processes happening
-        # not sure on the best way to do this yet
-        # Break? if neccessary
+    # try:
+    #     msg,ip = RPIServer.recvfrom(buffersize)     #https://stackoverflow.com/questions/7962531/socket-return-1-but-errno-0 if no message recieved?    #or does it wait?
+    # except Exception as error:
+    #     print("Error in recieving message: ",error)
+    # try:
+    #     msg_str = str(msg.decode('utf-8')) 
+    # except Exception as error:
+    #     print("Error in parsing recieved message: ",error)
+    # #msg = json.loads(json.dumps({"TCAM":True,"Voltage":False}))    #for testing (need to set ip as well tho)
+    # try:
+    #     msg = json.loads(msg_str)
+    # except Exception as error:
+    #     print(error)
+    # print(ip)
+    # now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
+    # acknowl = "(Server) Message: %s recieved from %s at %s " % (str(msg_str), str(ip) , str(now_rec))
+    # print(acknowl)
+    # RPIServer.sendto(acknowl.encode("utf-8"),ip)  #quick response to client to say server has recieved msg
+    # print("Acknowledgement sent to %s" % ip[0])
     
-    elif ((len(keysList) == 1) and (len(keysList[0])==4)):    # COMMAND json: {"CMMD":(param1,param2,param3)}
-        print("Message identified as cmmd.")
-        # This might need to be a multiprocess depending how how CPU intensive it is (or could set a particular command as a multiprocess)
-        # info = parse_cmd(msg,cmmd_list,ip,RPIServer)    # also handles unidentified cmds
-        # print(info)
-
-        supported = "Currently commands are not supported" # remove when implemented
-        RPIServer.sendto(supported.encode('utf-8'),ip) # remove when implemented
-
-
-    elif (len(keysList) == len(data_list)):    # DATA json: {"DATA":True,"DATA":False,.... for all data in data_list}
-        parse_data(msg,ip,RPIServer)     # also handles unidentified data requests
-        print("parse_data()")
-
-    elif ((len(keysList)==1) and (keysList[0] == "STREAM")):    # TCAM STREAM json:{"STREAM":True/False}
-        if msg["STREAM"] == True:
-            if p2.is_alive() == False:
-                # Turn on TCAM, start process
-                toggle_q = q_mgr.Queue(-1)  # Setting up queue for msg exchange between p1 and p2
-                p2 = Process(name="StreamProcess",target=live_tcam,args=(True,ip,RPIServer))       # Setting up p2
-                p2.start()  # Starting p2
-                print("Starting TCAM STREAM")
-            elif p2.is_alive() == True:
-                print("Error: TCAM STREAM already running")
-            else:
-                print("Error: failed to determine TCAM STREAM is_alive()")
-            
-        elif msg["STREAM"] == False:
-            if p2.is_alive() == True:
-                # end process
-                toggle_q.put(False)
-                print("Turning off TCAM STREAM")  
-            elif p2.is_alive() == False:
-                print("Error: TCAM STREAM already not running")
-               
-
-        else:
-            acknowl = "Unidentified STREAM command: " + msg
-            print(acknowl)   
-            RPIServer.sendto(acknowl.encode("utf-8"),ip)  # Telling client it's unidentified stream command
-    else:
-        acknowl = "Unidentified message: " + str(msg)
-        print(acknowl)   
-        RPIServer.sendto(acknowl.encode("utf-8"),ip)  # Telling client it's a completely unidentified message
+    
 
 print("Server has shutdown")
