@@ -11,6 +11,7 @@
 
 # 2. (maybe) Creating some kind of log file on Pi locally for testing purposes. All printed statements and error catches would be useful to append to log
 
+# 3. "[Errno 98] Address Already In Use" sometimes pops up after shutting down server and restarting python script, this needs solving.
 from datetime import datetime
 import time
 import socket
@@ -60,6 +61,7 @@ cmmd_list=["AOCS","CMD2","CMD3"] # For additional intentifiable 4-character cmmd
 signal.signal(signal.SIGINT, signal.SIG_DFL)    # Requred to allow CTRL/C exits for resvfrom()
 
 # MIGHT WANT TO ADD PASSWORD CHECK HERE TO AVOID ANY RANDO INTERFERING WITH THE PI ON COMPETITION DAY 
+result=None
 while True:
     #Initial message handling and acknowledgement
     print("In loop, waiting for a connection.")
@@ -69,13 +71,6 @@ while True:
         print('Connection from', client_address,"\n")
         while True:
             data = connection.recv(buffersize)  # TIME OUT? try/except similar to udp?
-            
-            # if data:
-            #     print('sending data back to the client')
-            #     connection.sendall(data)
-            # else:
-            #     print('no data from', client_address)
-            #     break
 
             try:
                 msg_str = str(data.decode('utf-8')) 
@@ -87,6 +82,9 @@ while True:
             except Exception as error:
                 print("JSON decode error: ",error)
                 # log file? so dont lose message?
+                if msg_str == '':
+                    print("Client has disconnected.\n")
+                    #result="DISCONNECTED"
                 break
             
             now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
@@ -98,9 +96,10 @@ while True:
             result = parse_msg(connection,msg,data_list)
 
             if result == "SHUTDOWN":
+                # need to join up existing threads
                 break
-
-    
+        #this indent = end/after the data receive while true loop GIVEN connection established from previous loop
+            
     except Exception as error:
         print("Error in TCP connection: ",error)
     finally:
@@ -112,6 +111,6 @@ while True:
         continue
 
 
-#shutdown things here
+#pi shutdown things here - INCOMPLETE, currently only ends python script
 
 print("Server has shutdown")
