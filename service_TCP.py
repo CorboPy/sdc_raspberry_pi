@@ -57,7 +57,6 @@ RPIServer.listen(1)
 # add time to data_list?
 data_list=["TIME","TCAM","VOLT","TEMP","IPAD","WLAN"] # For additional intentifiable data reqs, add them here and then add them to parse_data() in funcs.py!!!!!!
 cmmd_list=["AOCS","CMD2","CMD3"] # For additional intentifiable 4-character cmmd's, add them here and then add them to parse_cmd() in funcs.py!!!!!!
-
 signal.signal(signal.SIGINT, signal.SIG_DFL)    # Requred to allow CTRL/C exits for resvfrom()
 
 # MIGHT WANT TO ADD PASSWORD CHECK HERE TO AVOID ANY RANDO INTERFERING WITH THE PI ON COMPETITION DAY 
@@ -67,41 +66,38 @@ while True:
     # Wait for a connection
     connection, client_address = RPIServer.accept()
     try:
-        print('connection from', client_address)
-
-        # Receive the data in small chunks and retransmit it
+        print('Connection from', client_address,"\n")
         while True:
-            data = connection.recv(buffersize)  # TIME OUT?
+            data = connection.recv(buffersize)  # TIME OUT? try/except similar to udp?
             
+            # if data:
+            #     print('sending data back to the client')
+            #     connection.sendall(data)
+            # else:
+            #     print('no data from', client_address)
+            #     break
+
             try:
                 msg_str = str(data.decode('utf-8')) 
             except Exception as error:
-                print("Error in parsing recieved message: ",error)
+                print("Error in parsing received message: ",error)
                 continue #????
             try:
                 msg = json.loads(msg_str)
             except Exception as error:
-                print(error)
-                continue
-            
-            now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
-            acknowl = "(Server) Message: %s recieved from %s at %s " % (str(msg_str), str(client_address) , str(now_rec))
-            print(acknowl)
-            #RPIServer.sendto(acknowl.encode("utf-8"),ip)  #quick response to client to say server has recieved msg
-            print("Acknowledgement sent to %s" % client_address)
-
-            if data:
-                print('sending data back to the client')
-                connection.sendall(data)
-            else:
-                print('no data from', client_address)
+                print("JSON decode error: ",error)
+                # log file? so dont lose message?
                 break
             
-            result = parse_msg(connection,msg)
+            now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
+            acknowl = "(Server) Message: %s received from %s at %s " % (str(msg_str), str(client_address) , str(now_rec))
+            print(acknowl)
+            connection.sendall(acknowl.encode("utf-8"))  #quick response to client to say server has recieved msg
+            print("Acknowledgement sent to %s" % str(client_address))
+
+            result = parse_msg(connection,msg,data_list)
 
             if result == "SHUTDOWN":
-                RPIServer.shutdown(socket.SHUT_RDWR)
-                connection.close()
                 break
 
     
@@ -110,28 +106,12 @@ while True:
     finally:
         # Clean up the connection - what to do if shutting down?
         connection.close()
+        if result == "SHUTDOWN":
+            RPIServer.shutdown(socket.SHUT_RDWR)
+            break
+        continue
 
 
-    # try:
-    #     msg,ip = RPIServer.recvfrom(buffersize)     #https://stackoverflow.com/questions/7962531/socket-return-1-but-errno-0 if no message recieved?    #or does it wait?
-    # except Exception as error:
-    #     print("Error in recieving message: ",error)
-    # try:
-    #     msg_str = str(msg.decode('utf-8')) 
-    # except Exception as error:
-    #     print("Error in parsing recieved message: ",error)
-    # #msg = json.loads(json.dumps({"TCAM":True,"Voltage":False}))    #for testing (need to set ip as well tho)
-    # try:
-    #     msg = json.loads(msg_str)
-    # except Exception as error:
-    #     print(error)
-    # print(ip)
-    # now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
-    # acknowl = "(Server) Message: %s recieved from %s at %s " % (str(msg_str), str(ip) , str(now_rec))
-    # print(acknowl)
-    # RPIServer.sendto(acknowl.encode("utf-8"),ip)  #quick response to client to say server has recieved msg
-    # print("Acknowledgement sent to %s" % ip[0])
-    
-    
+#shutdown things here
 
 print("Server has shutdown")

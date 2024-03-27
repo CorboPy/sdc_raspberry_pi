@@ -114,7 +114,6 @@ def parse_data(dat_req,connection):
         data_out["WLAN"] = wlan_data
 
 
-    # add elifs for all datas!
     # add error catching to identify unidentified hiccups / errors and print + send msg to client saying what happened! 
         # an example being forgot to send TEMP in dictionary
 
@@ -122,15 +121,14 @@ def parse_data(dat_req,connection):
     
     json_string = json.dumps(data_out)
     print("data_out: ", json_string)
-    socket.sendall(json_string.encode('utf-8'))
+    connection.sendall(json_string.encode('utf-8'))
     print("Sent to connection.")
 
 # JSON ENCODING INFO
 # Convert into JSON using json dumps, send to client using socket.sendto(msg,ip)?
 # https://stackoverflow.com/questions/42397511/python-how-to-get-json-object-from-a-udp-received-packet
     
-def parse_msg(connection,msg):
-    data = {}   # Dictionary later to be converted to json and sent to client
+def parse_msg(connection,msg,data_list):
 
     # Message decoding
     keysList = list(msg.keys())
@@ -174,13 +172,16 @@ def parse_msg(connection,msg):
         # info = parse_cmd(msg,cmmd_list,ip,connection)    # also handles unidentified cmds
         # print(info)
 
+        # add try excepts to catch any non-command msgs
+
         supported = "Currently commands are not supported" # remove when implemented
         connection.sendall(supported.encode('utf-8')) # remove when implemented
-
+        return(None)
 
     elif (len(keysList) == len(data_list)):    # DATA json: {"DATA":True,"DATA":False,.... for all data in data_list}
-        parse_data(msg,ip,connection)     # also handles unidentified data requests
+        parse_data(msg,connection)     # also handles unidentified data requests
         print("parse_data()")
+        return(None)
 
     elif ((len(keysList)==1) and (keysList[0] == "STREAM")):    # TCAM STREAM json:{"STREAM":True/False}
         if msg["STREAM"] == True:
@@ -192,8 +193,10 @@ def parse_msg(connection,msg):
                 print("Starting TCAM STREAM")
             elif p2.is_alive() == True:
                 print("Error: TCAM STREAM already running")
+                # clean this up
             else:
                 print("Error: failed to determine TCAM STREAM is_alive()")
+                # clean this up
             
         elif msg["STREAM"] == False:
             if p2.is_alive() == True:
@@ -202,13 +205,13 @@ def parse_msg(connection,msg):
                 print("Turning off TCAM STREAM")  
             elif p2.is_alive() == False:
                 print("Error: TCAM STREAM already not running")
-               
+                # clean this up
 
         else:
             acknowl = "Unidentified STREAM command: " + msg
             print(acknowl)   
-            connection.sendto(acknowl.encode("utf-8"),ip)  # Telling client it's unidentified stream command
+            connection.sendall(acknowl.encode("utf-8"))  # Telling client it's unidentified stream command
     else:
         acknowl = "Unidentified message: " + str(msg)
         print(acknowl)   
-        connection.sendto(acknowl.encode("utf-8"),ip)  # Telling client it's a completely unidentified message
+        connection.sendall(acknowl.encode("utf-8"))  # Telling client it's a completely unidentified message
