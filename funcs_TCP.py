@@ -5,6 +5,7 @@ from datetime import datetime
 import time
 import socket
 import json
+import threading
 from multiprocessing import Process, managers
 import numpy as np
 from pyembedded.raspberry_pi_tools.raspberrypi import PI
@@ -15,28 +16,41 @@ def get_tcam():
     eight_by_eight_grid = 20*np.ones((8,8)) + 10*np.random.random((8,8))   # Get most recent tcam image data (currenly np random, for testing purposes)
     
     # DON'T NEED loads of decimals, truncate to save link budget:
-    return(eight_by_eight_grid.round(decimals=2))
+    return(eight_by_eight_grid.round(decimals=2).tolist())
+
+def imu_angle():
+    # will need to integrate imu data from mpu6050-raspberrypi
+
+    # Mock data:
+    angz = (np.random.random()*5)-2.5+90  # Pointed around 90 deg on IMU
+    return(round(angz,2))  
 
 # LIVE TCAM PROCESS
-def live_tcam(bool,ip,socket):    
-    # Create pipe to process 1 so that when p1 identifies the "end live feed" command, this process checks if this has been recieved each time round the loop. THIS WILL BE COMPLICATED!!!
-    bool = True
-    while (bool==True):     # While still want stream running...
-        # CALL GET TCAM HERE
-        # SEND JSON HERE    form is {"STREAM": [8x8 matrix]}
-        # 8x8 MATRIX MUST BE PYTHON LIST NOT NP ARRAY (ndarray not json serializable)
-        
-        time.sleep(0.2)
-        bool = toggle_q.get()
-        if bool==False:
-            acknowl = "Shutting down TCAM STREAM"
-            print(acknowl)
-            socket.sendto(acknowl.encode('utf-8'),ip)
+def live_tcam(connection,q1):   
+    bool=False
+    while True:     #checking all the time
+        if not q1.empty():
+                bool = q1.get()
+                print("(t1) bool: ",bool)
+        while bool==True:
+            matrix = get_tcam()
+            angz = imu_angle()
+            data_out = {"STREAM":[matrix,angz]}
+            json_string = json.dumps(data_out)
+            connection.sendall(json_string.encode('utf-8'))
+            time.sleep(0.5)
+
+            if not q1.empty():
+                bool = q1.get()
+                print("BOOL UPDATE: ",bool)
+            if bool==False:
+                acknowl = "(t1) Ending TCAM STREAM"
+                print(acknowl)
+                connection.sendall(acknowl.encode('utf-8'))
+                break
+        if bool=='KILL':
             break
-    print("(p2) Ended.")
-            
-    # Write shutdown code here (outside loop)
-    # listen for change in live cam True/False from p1. If now msg is {"STREAM":False}, stop this process PROPERLY! Very important - don't want memory leaks https://superfastpython.com/safely-stop-a-process-in-python/  
+    print("(t1) Shutting down.") 
         
 
 
@@ -91,7 +105,7 @@ def parse_data(dat_req,connection):
         socket (socket): server socket
     """
     
-    data_out = {"TIME":None,"TCAM":None,"VOLT":None,"TEMP":None,"IPAD":None,"WLAN":None} #  FILL FOR ALL DATAS IN DATA REQ LIST
+    data_out = {"TIME":None,"TCAM":None,"VOLT":None,"TEMP":None,"IPAD":None,"WLAN":None,"ANGZ":None} #  FILL FOR ALL DATAS IN DATA REQ LIST
     
 
     if dat_req["TIME"] == True:
@@ -99,7 +113,7 @@ def parse_data(dat_req,connection):
         data_out["TIME"] = time_data
     if dat_req["TCAM"] == True:
         tcam_data = get_tcam()  # get latest one-off tcam data from function
-        data_out["TCAM"] = tcam_data.tolist()
+        data_out["TCAM"] = tcam_data
     if dat_req["VOLT"] == True:
         voltage_data = 5    # get latest voltage data (5 placeholder, for testing purposes)
         data_out["VOLT"] = voltage_data
@@ -112,6 +126,9 @@ def parse_data(dat_req,connection):
     if dat_req["WLAN"] == True:
         wlan_data = pi.get_wifi_status()    # get wifi infomation
         data_out["WLAN"] = wlan_data
+    if dat_req["ANGZ"] == True:
+        angz_data = imu_angle()
+        data_out["ANGZ"] = angz_data
 
 
     # add error catching to identify unidentified hiccups / errors and print + send msg to client saying what happened! 
@@ -128,7 +145,7 @@ def parse_data(dat_req,connection):
 # Convert into JSON using json dumps, send to client using socket.sendto(msg,ip)?
 # https://stackoverflow.com/questions/42397511/python-how-to-get-json-object-from-a-udp-received-packet
     
-def parse_msg(connection,msg,data_list):
+def parse_msg(connection,msg,data_list,t1,q1):
 
     # Message decoding
     keysList = list(msg.keys())
@@ -185,28 +202,11 @@ def parse_msg(connection,msg,data_list):
 
     elif ((len(keysList)==1) and (keysList[0] == "STREAM")):    # TCAM STREAM json:{"STREAM":True/False}
         if msg["STREAM"] == True:
-            if p2.is_alive() == False:
-                # Turn on TCAM, start process
-                toggle_q = q_mgr.Queue(-1)  # Setting up queue for msg exchange between p1 and p2
-                p2 = Process(name="StreamProcess",target=live_tcam,args=(True,ip,connection))       # Setting up p2
-                p2.start()  # Starting p2
-                print("Starting TCAM STREAM")
-            elif p2.is_alive() == True:
-                print("Error: TCAM STREAM already running")
-                # clean this up
-            else:
-                print("Error: failed to determine TCAM STREAM is_alive()")
-                # clean this up
-            
+            q1.put(True)
+            print("Starting TCAM STREAM")
         elif msg["STREAM"] == False:
-            if p2.is_alive() == True:
-                # end process
-                toggle_q.put(False)
-                print("Turning off TCAM STREAM")  
-            elif p2.is_alive() == False:
-                print("Error: TCAM STREAM already not running")
-                # clean this up
-
+            q1.put(False)
+            print("Ending TCAM Stream")
         else:
             acknowl = "Unidentified STREAM command: " + msg
             print(acknowl)   

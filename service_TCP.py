@@ -1,4 +1,6 @@
 # Written by Alex Corbett, Feb 2024
+# FOR OSError: [Errno 98]:
+# kill -9 $(ps -A | grep python | awk '{print $1}')
 
 ### This will be the service .py file running on the on-board RPi so as long as it is turned on
 
@@ -16,12 +18,13 @@ from datetime import datetime
 import time
 import socket
 import json
-from multiprocessing import Process, managers
+import queue
 import numpy as np
 from funcs_TCP import *
 import signal
 from pyembedded.raspberry_pi_tools.raspberrypi import PI
 pi = PI()
+import os
 # machine for rpi <-> r pico (requesting payload data). probably i2c or something. However, the pico will also be connected via i2c to the amg88xx
 #import RPi.GPIO as GPIO
 
@@ -42,75 +45,93 @@ pi = PI()
 # Need to setup TCAM stream somehow using threading or processing. Also need to establish this thread/process before main loop so can test if it exists and shut it down using something (queue? something else?) 
 # TCP
 
-#### PROCESS 1 - MAIN BODY 
+#### THREAD 1
+def main():
+    # Setting up server. Will need to add try excepts here if anything goes wrong
+    buffersize = 2048
+    server_ip = pi.get_connected_ip_addr(network='wlan0').replace(" ","")
+    server_port = 2222
+    RPIServer = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    # if OS error in step below, run "kill -9 $(ps -A | grep python | awk '{print $1}'" in shell
+    # A proper fix might have to use .setsockopt()
+    #RPIServer.setsockopt()
+    RPIServer.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    RPIServer.bind((server_ip,server_port)) 
+    print("Server is running under IP ",server_ip," and port ",server_port) 
 
-# Setting up server. Will need to add try excepts here if anything goes wrong
-buffersize = 2048
-server_ip = pi.get_connected_ip_addr(network='wlan0').replace(" ","")
-server_port = 2222
-RPIServer = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-RPIServer.bind((server_ip,server_port))
-print("Server is running under IP ",server_ip," and port ",server_port) 
+    # Listen for incoming connections
+    RPIServer.listen(1)
 
-# Listen for incoming connections
-RPIServer.listen(1)
+    data_list=["TIME","TCAM","VOLT","TEMP","IPAD","WLAN","ANGZ"] # For additional intentifiable data reqs, add them here and then add them to parse_data() in funcs_TCP.py!!!!!!
+    cmmd_list=["AOCS","CMD2","CMD3"] # For additional intentifiable 4-character cmmd's, add them here and then add them to parse_cmd() in funcs.py!!!!!!
+    signal.signal(signal.SIGINT, signal.SIG_DFL)    # Requred to allow CTRL/C exits for resvfrom()
 
-# add time to data_list?
-data_list=["TIME","TCAM","VOLT","TEMP","IPAD","WLAN"] # For additional intentifiable data reqs, add them here and then add them to parse_data() in funcs.py!!!!!!
-cmmd_list=["AOCS","CMD2","CMD3"] # For additional intentifiable 4-character cmmd's, add them here and then add them to parse_cmd() in funcs.py!!!!!!
-signal.signal(signal.SIGINT, signal.SIG_DFL)    # Requred to allow CTRL/C exits for resvfrom()
+    # MIGHT WANT TO ADD PASSWORD CHECK HERE TO AVOID ANY RANDO INTERFERING WITH THE PI ON COMPETITION DAY 
+    result=None
+    while True:
+        #Initial message handling and acknowledgement
+        print("In loop, waiting for a connection.")
+        # Wait for a connection
+        connection, client_address = RPIServer.accept()
+        try:
+            print('Connection from', client_address,"\n")
+            while True:
+                data = connection.recv(buffersize)  
 
-# MIGHT WANT TO ADD PASSWORD CHECK HERE TO AVOID ANY RANDO INTERFERING WITH THE PI ON COMPETITION DAY 
-result=None
-while True:
-    #Initial message handling and acknowledgement
-    print("In loop, waiting for a connection.")
-    # Wait for a connection
-    connection, client_address = RPIServer.accept()
-    try:
-        print('Connection from', client_address,"\n")
-        while True:
-            data = connection.recv(buffersize)  # TIME OUT? try/except similar to udp?
+                # Setting up threads
+                q1 = queue.Queue()
+                t1 = threading.Thread(target=live_tcam, args=(connection,q1))    # Listening
+                t1.start()
 
-            try:
-                msg_str = str(data.decode('utf-8')) 
-            except Exception as error:
-                print("Error in parsing received message: ",error)
-                continue #????
-            try:
-                msg = json.loads(msg_str)
-            except Exception as error:
-                print("JSON decode error: ",error)
-                # log file? so dont lose message?
-                if msg_str == '':
-                    print("Client has disconnected.\n")
-                    #result="DISCONNECTED"
-                break
-            
-            now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
-            acknowl = "(Server) Message: %s received from %s at %s " % (str(msg_str), str(client_address) , str(now_rec))
-            print(acknowl)
-            connection.sendall(acknowl.encode("utf-8"))  #quick response to client to say server has recieved msg
-            print("Acknowledgement sent to %s" % str(client_address))
+                try:
+                    msg_str = str(data.decode('utf-8')) 
+                except Exception as error:
+                    print("Error in parsing received message: ",error)
+                    continue #????
+                try:
+                    msg = json.loads(msg_str)
+                except Exception as error:
+                    print("JSON decode error: ",error)
+                    # log file? so dont lose message?
+                    if msg_str == '':
+                        print("Client has disconnected.\n")
+                        q1.put(False)
+                        #result="DISCONNECTED"
+                    break
+                
+                now_rec = datetime.now().strftime("%d.%m.%Y_%H.%M.%S")
+                acknowl = "(Server) Message: %s received from %s at %s " % (str(msg_str), str(client_address) , str(now_rec))
+                print(acknowl)
+                connection.sendall(acknowl.encode("utf-8"))  #quick response to client to say server has recieved msg
+                print("Acknowledgement sent to %s" % str(client_address))
 
-            result = parse_msg(connection,msg,data_list)
+                try:
+                    result = parse_msg(connection,msg,data_list,t1,q1)
+                except Exception as err:
+                    print("Error in parsing message: ",err)
+                    break
 
+                if result == "SHUTDOWN":
+                    if t1.is_alive():
+                        q1.put("KILL")
+                        t1.join()
+                    break
+            #this indent = end/after the data receive while true loop GIVEN connection established from previous loop
+                
+        except Exception as error:
+            print("Error in connection loop: ",error)
+        finally:
+            # Clean up the connection - what to do if shutting down?
+            connection.close()
             if result == "SHUTDOWN":
-                # need to join up existing threads
+                RPIServer.shutdown(socket.SHUT_RDWR)
                 break
-        #this indent = end/after the data receive while true loop GIVEN connection established from previous loop
-            
-    except Exception as error:
-        print("Error in TCP connection: ",error)
-    finally:
-        # Clean up the connection - what to do if shutting down?
-        connection.close()
-        if result == "SHUTDOWN":
-            RPIServer.shutdown(socket.SHUT_RDWR)
-            break
-        continue
+            continue
 
 
-#pi shutdown things here - INCOMPLETE, currently only ends python script
+    #pi shutdown things here - INCOMPLETE, currently only ends python script
 
-print("Server has shutdown")
+    print("Server has shutdown")
+
+if __name__=="__main__":
+    main()
