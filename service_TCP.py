@@ -75,13 +75,15 @@ def main():
         connection, client_address = RPIServer.accept()
         try:
             print('Connection from', client_address,"\n")
+            count = 0
             while True:
                 data = connection.recv(buffersize)  
-
+                count=+1
+                if count==1:
                 # Setting up threads
-                q1 = queue.Queue()
-                t1 = threading.Thread(target=live_tcam, args=(connection,q1))    # Listening
-                t1.start()
+                    q1 = queue.Queue()
+                    t1 = threading.Thread(target=live_tcam, args=(q1))    # Listening
+                    t1.start()
 
                 try:
                     msg_str = str(data.decode('utf-8')) 

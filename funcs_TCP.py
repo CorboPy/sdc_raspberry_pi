@@ -26,11 +26,11 @@ def imu_angle():
     return(round(angz,2))  
 
 # LIVE TCAM PROCESS
-def live_tcam(connection,q1):   
+def live_tcam(q1):   
     bool=False
     while True:     #checking all the time
         if not q1.empty():
-                bool = q1.get()
+                bool,connection = q1.get()
                 print("(t1) bool: ",bool)
         while bool==True:
             matrix = get_tcam()
@@ -41,7 +41,7 @@ def live_tcam(connection,q1):
             time.sleep(0.5)
 
             if not q1.empty():
-                bool = q1.get()
+                bool, connection = q1.get()
                 print("BOOL UPDATE: ",bool)
             if bool==False:
                 acknowl = "(t1) Ending TCAM STREAM"
@@ -202,10 +202,10 @@ def parse_msg(connection,msg,data_list,t1,q1):
 
     elif ((len(keysList)==1) and (keysList[0] == "STREAM")):    # TCAM STREAM json:{"STREAM":True/False}
         if msg["STREAM"] == True:
-            q1.put(True)
+            q1.put(True,connection)
             print("Starting TCAM STREAM")
         elif msg["STREAM"] == False:
-            q1.put(False)
+            q1.put(False,connection)
             print("Ending TCAM Stream")
         else:
             acknowl = "Unidentified STREAM command: " + msg
