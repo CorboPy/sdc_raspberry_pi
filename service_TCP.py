@@ -73,18 +73,13 @@ def main():
         print("In loop, waiting for a connection.")
         # Wait for a connection
         connection, client_address = RPIServer.accept()
+        q1 = queue.Queue()
+        t1 = threading.Thread(target=live_tcam, args=(q1,connection))    # Listening
+        t1.start()
         try:
             print('Connection from', client_address,"\n")
-            count = 0
             while True:
                 data = connection.recv(buffersize)  
-                count=+1
-                if count==1:
-                # Setting up threads
-                    q1 = queue.Queue()
-                    t1 = threading.Thread(target=live_tcam, args=(q1))    # Listening
-                    t1.start()
-
                 try:
                     msg_str = str(data.decode('utf-8')) 
                 except Exception as error:
@@ -114,9 +109,6 @@ def main():
                     break
 
                 if result == "SHUTDOWN":
-                    if t1.is_alive():
-                        q1.put("KILL")
-                        t1.join()
                     break
             #this indent = end/after the data receive while true loop GIVEN connection established from previous loop
                 
@@ -124,6 +116,9 @@ def main():
             print("Error in connection loop: ",error)
         finally:
             # Clean up the connection - what to do if shutting down?
+            if t1.is_alive():
+                    q1.put("KILL")
+                    t1.join()
             connection.close()
             if result == "SHUTDOWN":
                 RPIServer.shutdown(socket.SHUT_RDWR)
